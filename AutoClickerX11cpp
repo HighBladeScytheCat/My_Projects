@@ -1,0 +1,123 @@
+#include <iostream>
+
+//QtWidgets
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QWidget>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QSpinBox>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QFormLayout>
+#include <QTimer>
+
+//X11 Mouse Controll
+#include <X11/Xlib.h>
+#include <X11/extensions/XTest.h>
+
+void clickit() {
+    Display *display = XOpenDisplay(nullptr);
+    if (display == nullptr) {
+        std::cerr << "Couldnt open the X11 display" << std::endl;
+        return;
+    }
+
+    XTestFakeButtonEvent(display, 1, True, CurrentTime);
+
+    XTestFakeButtonEvent(display, 1, False, CurrentTime);
+
+    XFlush(display);
+
+    XCloseDisplay(display);
+}
+
+class MainWindow : public QWidget {
+    public:
+    MainWindow(QWidget *parent = nullptr);
+
+    private:
+    //UI
+    QSpinBox *interval_spinbox;
+    QPushButton *toggle_button;
+    QLabel *current_status;
+
+    //Logica
+    QTimer *timer;
+    bool isclicking;
+};
+
+MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
+    setWindowTitle("Auto Clicker");
+    setMinimumSize(300, 150);
+
+    isclicking = false;
+    timer = new QTimer(this);
+
+    //UI
+    interval_spinbox = new QSpinBox();
+    interval_spinbox->setRange(10, 50000);
+    interval_spinbox->setValue(10);
+    interval_spinbox->setSuffix(" ms");
+    
+    toggle_button = new QPushButton("Start Auto Clicker");
+    toggle_button->setStyleSheet(R"(
+        QPushButton {
+            background-color: #4a4a4a;
+            border: 1px solid #6a6a6a;
+            border-radius: 10px;
+            padding: 5px;
+        }
+        QPushbutton:hover {
+            background-color: #5a5a5a;
+        }
+        QPushbutton:pressed {
+            background-color: #3a3a3a;
+        }"
+    )");
+    current_status = new QLabel("Status: Stopped");
+    current_status->setStyleSheet("color: red;");
+
+    //layout
+    QVBoxLayout *main = new QVBoxLayout(this);
+    QFormLayout *form = new QFormLayout();
+
+    form->addRow("Click Interval: ", interval_spinbox);
+    main->addLayout(form);
+    main->addWidget(toggle_button);
+    main->addWidget(current_status);
+
+    connect(timer, &QTimer::timeout, [=]() {
+        clickit();
+        std::cout << "click" << std::endl;
+    });
+
+    connect(toggle_button, &QPushButton::clicked, [=]() {
+        isclicking = !isclicking;
+
+        if (isclicking) {
+            //start
+            int interval = interval_spinbox->value();
+            timer->start(interval);
+
+            toggle_button->setText("Stop Clickin");
+            current_status->setText("Status: Running");
+            current_status->setStyleSheet("color: green");
+            interval_spinbox->setEnabled(false);
+        } else {
+            //stop
+            timer->stop();
+
+            toggle_button->setText("Start Clickin");
+            current_status->setText("Status: Stopped");
+            current_status->setStyleSheet("color: red");
+            interval_spinbox->setEnabled(true);
+        }
+    });
+}
+
+int main(int argc, char *argv[]) {
+    QApplication app(argc, argv);
+    MainWindow window;
+    window.show();
+
+    return app.exec();
+}
